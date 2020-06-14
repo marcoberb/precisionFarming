@@ -21,6 +21,7 @@ dependencies {
 
 	implementation 'org.springframework.boot:spring-boot-starter'
 	implementation 'org.springframework.kafka:spring-kafka'
+	implementation 'com.opencsv:opencsv:5.2'
 
 	testImplementation('org.springframework.boot:spring-boot-starter-test') {
 		exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'

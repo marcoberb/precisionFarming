@@ -13,7 +13,7 @@ public class ClientService {
     private MsgPublisherPort msgPublisherPort;
 
     @Scheduled(fixedDelay = 1000)
-    public void generateData(){
+    public void generateData() {
         log.info("generate");
         msgPublisherPort.publishToServer("prova");
     }
