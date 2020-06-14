@@ -1,0 +1,7 @@
+rootProject.name = 'precision-farming'
+
+include 'client'
+include 'server'
+
+project(':client').name = 'client'
+project(':server').name = 'server'
