@@ -9,18 +9,19 @@ import org.apache.spark.streaming.api.java.JavaReceiverInputDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.springframework.stereotype.Component;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.regex.Pattern;
 
 @Component
 @Slf4j
-public class SparkStreamingListener {
+public class SparkStreamingListener implements Serializable {
 
     private final Pattern separator = Pattern.compile(",");
     private final String hostname = "localhost";
     private final int port = 9092;
 
-    public void listen() {
+    public void listen() throws InterruptedException {
 
         SparkConf sparkConf = new SparkConf().setAppName("prova").setMaster("local");
         log.info("SparkConf set for {}", sparkConf);
@@ -30,9 +31,14 @@ public class SparkStreamingListener {
 
         JavaReceiverInputDStream<String> lines = ssc.socketTextStream(this.hostname, this.port, StorageLevels.MEMORY_AND_DISK_SER);
         log.info("lines: {}", lines);
+        lines.print();
 
         JavaDStream<String> fields = lines.flatMap(line -> Arrays.asList(separator.split(line)).iterator());
         log.info("fields: {}", fields);
+        fields.print();
+
+        ssc.start();
+        ssc.awaitTermination();
 
     }
 
