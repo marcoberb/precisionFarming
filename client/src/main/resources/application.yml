@@ -1,0 +1,17 @@
+debug: false
+
+# Application
+spring:
+  application:
+    name: client
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+# Kafka
+kafka:
+  channel:
+    out: iotData
+
