@@ -4,3 +4,12 @@ debug: false
 spring:
   application:
     name: server
+
+# Kafka
+kafka:
+  hostname:
+    localhost:9092
+  groupid:
+    serverGroup
+  channel:
+    in: iotData
