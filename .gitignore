@@ -30,3 +30,9 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### CSV data ###
+data/
+
+### macOS ###
+**/.DS_STORE
