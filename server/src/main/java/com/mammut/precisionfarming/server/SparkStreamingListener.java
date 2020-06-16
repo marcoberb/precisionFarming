@@ -31,8 +31,8 @@ public class SparkStreamingListener implements Serializable {
     private String hostname;
     @Value("${kafka.groupid}")
     private String groupid;
-    @Value("${kafka.channel.in}")
-    private String channel;
+    @Value("${kafka.channels.in}")
+    private String channels;
 
 
     public void listen() throws InterruptedException {
@@ -40,34 +40,50 @@ public class SparkStreamingListener implements Serializable {
         // Spark Streaming configuration
         SparkConf sparkConf = new SparkConf().setAppName("server").setMaster("local");
         log.info("SparkConf set for {}", sparkConf);
-        JavaStreamingContext jsc = new JavaStreamingContext(sparkConf, Durations.seconds(1));
+        JavaStreamingContext jsc = new JavaStreamingContext(sparkConf, Durations.seconds(5));
         log.info("JavaStreamingContext set {}", jsc);
 
         // Kafka configuration
-        Set<String> topicsSet = new HashSet<String>(Collections.singleton(channel));
+        List<String> topicsList = Arrays.asList(channels.split(","));
         Map<String, Object> kafkaParams = new HashMap<>();
         kafkaParams.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, hostname);
         kafkaParams.put(ConsumerConfig.GROUP_ID_CONFIG, groupid);
         kafkaParams.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         kafkaParams.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
 
-        // Connect to Kafka
-        JavaInputDStream<ConsumerRecord<String, String>> messages =
+        // Connect to Kafka meteo topic
+        HashSet<String> meteoTopic = new HashSet<String>(Collections.singleton(topicsList.get(0)));
+        JavaInputDStream<ConsumerRecord<String, String>> meteoMessages =
                 KafkaUtils.createDirectStream(
                         jsc,
                         LocationStrategies.PreferConsistent(),
-                        ConsumerStrategies.Subscribe(topicsSet, kafkaParams)
+                        ConsumerStrategies.Subscribe(meteoTopic, kafkaParams)
                 );
 
-        // Receive data
-        JavaDStream<String> lines = messages.map(ConsumerRecord::value);
-        log.info("lines: {}", lines);
-        lines.print();
+        // Connect to Kafka suolo topic
+        HashSet<String> suoloTopic = new HashSet<String>(Collections.singleton(topicsList.get(1)));
+        JavaInputDStream<ConsumerRecord<String, String>> suoloMessages =
+                KafkaUtils.createDirectStream(
+                        jsc,
+                        LocationStrategies.PreferConsistent(),
+                        ConsumerStrategies.Subscribe(suoloTopic, kafkaParams)
+                );
 
-        // Split fields
-        JavaDStream<String> fields = lines.flatMap(line -> Arrays.asList(SEPARATOR.split(line)).iterator());
-        log.info("fields: {}", fields);
-        fields.print();
+        // Receive meteo data
+        JavaDStream<String> meteoLines = meteoMessages.map(ConsumerRecord::value);
+        meteoLines.print();
+
+        // Receive suolo data
+        JavaDStream<String> suoloLines = suoloMessages.map(ConsumerRecord::value);
+        suoloLines.print();
+
+        // Split meteo fields
+        JavaDStream<String> meteoFields = meteoLines.flatMap(line -> Arrays.asList(SEPARATOR.split(line)).iterator());
+        meteoFields.print();
+
+        // Split suolo fields
+        JavaDStream<String> suoloFields = suoloLines.flatMap(line -> Arrays.asList(SEPARATOR.split(line)).iterator());
+        suoloLines.print();
 
         jsc.start();
         jsc.awaitTermination();

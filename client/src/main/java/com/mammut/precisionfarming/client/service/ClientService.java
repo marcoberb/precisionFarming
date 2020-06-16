@@ -19,8 +19,8 @@ public class ClientService {
     @Autowired
     private MsgPublisherPort msgPublisherPort;
 
-    public void generateData(){
-        String csvFile = "client/meteo_2020.csv";
+    public void generateData(String source){
+        String csvFile = "data/" + source + ".csv";
 
         CSVReader reader = null;
         try {
@@ -32,7 +32,7 @@ public class ClientService {
                 String output = String.join(";", line);
 
                 log.info("Sending {}", output);
-                msgPublisherPort.publishToServer(output);
+                msgPublisherPort.publishToServer(source, output);
 
                 Thread.sleep(1000);
             }
