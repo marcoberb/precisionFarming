@@ -18,7 +18,7 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok'
 
 	implementation 'org.springframework.boot:spring-boot-starter'
-	implementation 'org.apache.spark:spark-streaming-kafka_2.11:1.6.3'
+	implementation 'org.apache.spark:spark-streaming-kafka-0-10_2.12:2.4.6'
 	implementation 'org.apache.spark:spark-streaming_2.12:2.4.6'
 	implementation 'org.apache.spark:spark-core_2.12:2.4.6'
 

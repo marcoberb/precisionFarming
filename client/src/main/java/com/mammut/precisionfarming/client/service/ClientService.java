@@ -25,13 +25,13 @@ public class ClientService {
         CSVReader reader = null;
         try {
             CSVParser csvParser = new CSVParserBuilder().withSeparator(';').build();
-            reader = new CSVReaderBuilder(new FileReader(csvFile)).withCSVParser(csvParser).build();
+            reader = new CSVReaderBuilder(new FileReader(csvFile)).withCSVParser(csvParser).withSkipLines(1).build();
 
             String[] line;
             while ((line = reader.readNext()) != null) {
-                String output = "id_dato: " + line[0] + ", data_ora: " + line[1] + " , temp1_media: " + line[2];
-                System.out.println(output);
-                log.info("generate");
+                String output = String.join(";", line);
+
+                log.info("Sending {}", output);
                 msgPublisherPort.publishToServer(output);
 
                 Thread.sleep(1000);
