@@ -18,8 +18,9 @@ public class MsgPublisherAdapter implements MsgPublisherPort {
     private String channel;
 
     @Override
-    public void publishToServer(String payload) {
-        log.info("invio sul topic: " + this.channel + " il messaggio: " + payload);
-        template.send(this.channel, payload);
+    public void publishToServer(String channelSuffix, String payload) {
+        String completeChannel = this.channel + "_" + channelSuffix;
+        log.info("invio sul topic: " + completeChannel + " il messaggio: " + payload);
+        template.send(completeChannel, payload);
     }
 }

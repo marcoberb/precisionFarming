@@ -12,7 +12,13 @@ public class ClientApplication {
     public static void main(String[] args) {
         ApplicationContext applicationContext = SpringApplication.run(ClientApplication.class, args);
         ClientService clientService = applicationContext.getBean(ClientService.class);
-        clientService.generateData();
-    }
 
+        new Thread(() -> {
+            clientService.generateData("meteo_2020");
+        }).start();
+
+        new Thread(() -> {
+            clientService.generateData("suolo_1_2020");
+        }).start();
+    }
 }

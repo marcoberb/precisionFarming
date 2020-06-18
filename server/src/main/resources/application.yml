@@ -11,5 +11,5 @@ kafka:
     localhost:9092
   groupid:
     serverGroup
-  channel:
-    in: iotData
+  channels:
+    in: iotData_meteo_2020,iotData_suolo_1_2020
