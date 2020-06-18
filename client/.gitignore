@@ -33,3 +33,6 @@ out/
 
 ### macOS ###
 **/.DS_STORE
+
+### .csv ###
+*.csv
