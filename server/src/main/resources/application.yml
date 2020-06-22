@@ -4,14 +4,14 @@ debug: false
 spring:
   application:
     name: server
-  data:
-    mongodb:
-      uri: mongodb://localhost:27017
-      #database: inserisci-db
+#  data:
+#    mongodb:
+#      uri: mongodb://localhost:27017
+#      database: inserisci-db
 
 # Kafka
 kafka:
   hostname: localhost:9092
   groupid: serverGroup
   channels:
-    in: iotData_meteo_2020,iotData_suolo_1_2020
+    in: iotData_meteo_2020_gennaio_marzo,iotData_suolo_1_2020

@@ -14,7 +14,7 @@ public class ClientApplication {
         ClientService clientService = applicationContext.getBean(ClientService.class);
 
         new Thread(() -> {
-            clientService.generateData("meteo_2020");
+            clientService.generateData("meteo_2020_gennaio_marzo");
         }).start();
 
         new Thread(() -> {
