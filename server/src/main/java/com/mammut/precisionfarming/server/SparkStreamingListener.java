@@ -1,6 +1,7 @@
 package com.mammut.precisionfarming.server;
 
 import com.mongodb.spark.MongoSpark;
+import com.mongodb.spark.config.WriteConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -46,11 +47,10 @@ public class SparkStreamingListener implements Serializable {
         SparkSession sparkSession = SparkSession.builder()
                 .master("local")
                 .appName("server")
-                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precisionFarming.raw")
-                .config("spark.mongodb.output.uri", "mongodb://localhost:27011/precisionFarming.raw")
+                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/")
                 .getOrCreate();
         JavaSparkContext javaSparkContext = new JavaSparkContext(sparkSession.sparkContext());
-        JavaStreamingContext jsc = new JavaStreamingContext(javaSparkContext, Durations.seconds(5));
+        JavaStreamingContext jsc = new JavaStreamingContext(javaSparkContext, Durations.seconds(1));
 
         // Kafka configuration
         List<String> topicsList = Arrays.asList(channels.split(","));
@@ -60,73 +60,107 @@ public class SparkStreamingListener implements Serializable {
         kafkaParams.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         kafkaParams.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
 
-        // Connect to Kafka meteo topic
-        HashSet<String> meteoTopic = new HashSet<String>(Collections.singleton(topicsList.get(0)));
-        JavaInputDStream<ConsumerRecord<String, String>> meteoMessages =
-                KafkaUtils.createDirectStream(
-                        jsc,
-                        LocationStrategies.PreferConsistent(),
-                        ConsumerStrategies.Subscribe(meteoTopic, kafkaParams)
-                );
+        List<JavaDStream> streams = this.getDStreams(jsc, kafkaParams, topicsList);
 
-        // Connect to Kafka suolo topic
-        HashSet<String> suoloTopic = new HashSet<String>(Collections.singleton(topicsList.get(1)));
-        JavaInputDStream<ConsumerRecord<String, String>> suoloMessages =
-                KafkaUtils.createDirectStream(
-                        jsc,
-                        LocationStrategies.PreferConsistent(),
-                        ConsumerStrategies.Subscribe(suoloTopic, kafkaParams)
-                );
-
-        // Receive meteo data
-        JavaDStream<String> meteoLines = meteoMessages.map(ConsumerRecord::value);
-        //meteoLines.print();
-
-        // Receive suolo data
-        JavaDStream<String> suoloLines = suoloMessages.map(ConsumerRecord::value);
-        //suoloLines.print();
-
-        // Split meteo fields
-        // JavaDStream<String> meteoFields = meteoLines.flatMap(line -> Arrays.asList(SEPARATOR.split(line)).iterator());
-        meteoLines.foreachRDD(rdd -> {
-            JavaRDD<Document> meteoDocuments = rdd.map(line -> {
-                List<String> fields = Arrays.asList(SEPARATOR.split(line));
-                log.info("Linea RDD: " + Arrays.toString(fields.toArray()));
-
-                String id = fields.get(0);
-                String timestamp = fields.get(1);
-                String temperature = fields.get(2);
-                String humidity = fields.get(5);
-                String rain = fields.get(9);
-                String wind_dir = fields.get(10);
-                String wind_speed = fields.get(12);
-                String pressure = fields.get(16);
-                String radiation = fields.get(19);
-
-                Document document = new Document("_id", id);
-                document.put("timestamp", timestamp);
-                document.put("temperature", temperature);
-                document.put("humidity", humidity);
-                document.put("rain", rain);
-                document.put("wind_dir", wind_dir);
-                document.put("wind_speed", wind_speed);
-                document.put("pressure", pressure);
-                document.put("radiation", radiation);
-
-                return document;
-            });
-
-            MongoSpark.save(meteoDocuments);
-        });
-        //meteoLines.print();
-        //meteoFields.print();
-
-        // Split suolo fields
-        //JavaDStream<String> suoloFields = suoloLines.flatMap(line -> Arrays.asList(SEPARATOR.split(line)).iterator());
-        //suoloLines.print();
+        this.saveRawData(streams, topicsList);
 
         jsc.start();
         jsc.awaitTermination();
+    }
+
+    private List<JavaDStream> getDStreams(JavaStreamingContext jsc, Map<String, Object> kafkaParams, List<String> topicsList) {
+        // Connect to Kafka topic
+        HashSet<String> topicSet = new HashSet<String>(topicsList);
+        JavaInputDStream<ConsumerRecord<String, String>> messages =
+                KafkaUtils.createDirectStream(
+                        jsc,
+                        LocationStrategies.PreferConsistent(),
+                        ConsumerStrategies.Subscribe(topicSet, kafkaParams)
+                );
+
+        List<JavaDStream> dStreams = new ArrayList<>();
+        for (String topic: topicsList) {
+            // Get data relative to this topic
+            JavaDStream<ConsumerRecord<String, String>> topicMessages = messages.filter(record -> record.topic().equals(topic));
+
+            // Receive data
+            JavaDStream<String> lines = topicMessages.map(ConsumerRecord::value);
+
+            // Split fields
+            JavaDStream<List<String>> fields = lines.map(line -> Arrays.asList(SEPARATOR.split(line)));
+
+            dStreams.add(fields);
+        }
+
+        return dStreams;
+    }
+
+    private void saveRawData(List<JavaDStream> streams, List<String> topicsList) {
+        for (int i=0; i<topicsList.size(); i++) {
+            JavaDStream<List<String>> stream = streams.get(i);
+            String topic = topicsList.get(i);
+
+            Map<String, Integer> fieldToIndex = new HashMap<>();
+            if (topic.contains("meteo")) {
+                // Get mapping from meteo field names to index in the row string
+                getMeteoFieldToIndex(fieldToIndex);
+            }
+            else if (topic.contains("suolo")) {
+                // Get mapping from suolo field names to index in the row string
+                getSuoloFieldToIndex(fieldToIndex);
+            }
+
+            // Set mongo write options
+            Map<String, String> mongoOptions = new HashMap<>();
+            mongoOptions.put("uri", "mongodb://localhost:27011/");
+            mongoOptions.put("database", "precisionFarmingRaw");
+            mongoOptions.put("collection", topic);
+            WriteConfig writeConfig = WriteConfig.create(mongoOptions);
+
+            // Save raw data to mongo
+            stream.foreachRDD(rdd -> {
+                JavaRDD<Document> documents = rdd.map(fields -> {
+                    log.info("Linea RDD: " + Arrays.toString(fields.toArray()));
+
+                    Document document = this.getDocument(fieldToIndex, fields);
+
+                    return document;
+                });
+
+                MongoSpark.save(documents, writeConfig);
+            });
+        }
+    }
+
+    private void getMeteoFieldToIndex(Map<String, Integer> fieldToIndex) {
+        fieldToIndex.put("_id", 0);
+        fieldToIndex.put("timestamp", 1);
+        fieldToIndex.put("temperature", 2);
+        fieldToIndex.put("humidity", 5);
+        fieldToIndex.put("rain", 9);
+        fieldToIndex.put("wind_dir", 10);
+        fieldToIndex.put("wind_speed", 12);
+        fieldToIndex.put("pressure", 16);
+        fieldToIndex.put("radiation", 19);
+    }
+
+
+    private void getSuoloFieldToIndex(Map<String, Integer> fieldToIndex) {
+        fieldToIndex.put("_id", 0);
+        fieldToIndex.put("timestamp", 3);
+        fieldToIndex.put("water_0", 4);
+        fieldToIndex.put("temperature_0", 6);
+        fieldToIndex.put("water_1", 8);
+        fieldToIndex.put("temperature_1", 10);
+    }
+
+    private Document getDocument(Map<String, Integer> fieldToIndex, List<String> fields) {
+        Document document = new Document();
+        for (Map.Entry<String, Integer> field: fieldToIndex.entrySet()) {
+            document.put(field.getKey(), fields.get(field.getValue()));
+        }
+
+        return document;
     }
 
 }

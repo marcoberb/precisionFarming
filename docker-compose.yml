@@ -21,7 +21,7 @@ services:
     environment:
       KAFKA_ADVERTISED_HOST_NAME: localhost
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_CREATE_TOPICS: "iotData:1:1"
+      KAFKA_CREATE_TOPICS: "iotData_meteo_2020_gennaio_marzo:1:1,iotData_suolo_1_2020:1:1,iotData_suolo_2_2020:1:1,iotData_suolo_3_2020:1:1,iotData_suolo_4_2020:1:1,iotData_suolo_5_2020:1:1,iotData_suolo_6_2020:1:1,iotData_suolo_7_2020:1:1,iotData_suolo_8_2020:1:1,iotData_suolo_9_2020:1:1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
