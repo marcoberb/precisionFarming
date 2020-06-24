@@ -22,6 +22,7 @@ import org.apache.spark.streaming.kafka010.LocationStrategies;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import scala.Tuple2;
 
 import java.io.Serializable;
 import java.util.*;
@@ -50,7 +51,7 @@ public class SparkStreamingListener implements Serializable {
                 .config("spark.mongodb.input.uri", "mongodb://localhost:27011/")
                 .getOrCreate();
         JavaSparkContext javaSparkContext = new JavaSparkContext(sparkSession.sparkContext());
-        JavaStreamingContext jsc = new JavaStreamingContext(javaSparkContext, Durations.seconds(1));
+        JavaStreamingContext jsc = new JavaStreamingContext(javaSparkContext, Durations.seconds(6));
 
         // Kafka configuration
         List<String> topicsList = Arrays.asList(channels.split(","));
@@ -63,6 +64,8 @@ public class SparkStreamingListener implements Serializable {
         List<JavaDStream> streams = this.getDStreams(jsc, kafkaParams, topicsList);
 
         this.saveRawData(streams, topicsList);
+
+        this.sicknessAlert(streams, topicsList);
 
         jsc.start();
         jsc.awaitTermination();
@@ -93,6 +96,65 @@ public class SparkStreamingListener implements Serializable {
         }
 
         return dStreams;
+    }
+
+    private void sicknessAlert(List<JavaDStream> streams, List<String> topicsList) {
+        final float thresholdTemperature = -1;
+        for (int i=0; i<topicsList.size(); i++) {
+            JavaDStream<List<String>> stream = streams.get(i);
+            String topic = topicsList.get(i);
+
+            Map<String, Integer> fieldToIndex = new HashMap<>();
+            if(topic.contains("meteo")) {
+                // Get mapping from meteo field names to index in the row string
+                getMeteoFieldToIndex(fieldToIndex);
+
+                JavaDStream<Tuple2<String, Float>> tempAvg = stream.mapToPair(fields -> {
+                    String timestamp = fields.get(fieldToIndex.get("timestamp"));
+                    Float temperature = Float.valueOf(fields.get(fieldToIndex.get("temperature")));
+
+                    return new Tuple2<>(timestamp, new Tuple2<>(temperature, 1));
+                })
+                .reduceByKey((left, right) -> {
+                    Float temperature = left._1() + right._1();
+                    Integer count = left._2() + right._2();
+
+                    return new Tuple2<>(temperature, count);
+                })
+                .map(pair -> {
+                    String cutTimestamp = pair._1().substring(0, pair._1().length()-3);
+                    Float avgTemperature = pair._2()._1() / pair._2()._2();
+
+                    return new Tuple2<>(cutTimestamp, avgTemperature);
+                })
+                .filter(pair -> pair._2() > thresholdTemperature);
+
+                // Set mongo write options
+                Map<String, String> mongoOptions = new HashMap<>();
+                mongoOptions.put("uri", "mongodb://localhost:27011/");
+                mongoOptions.put("database", "precisionFarmingStreamingAnalysis");
+                mongoOptions.put("collection", "sicknessAlert");
+                WriteConfig writeConfig = WriteConfig.create(mongoOptions);
+
+                tempAvg.foreachRDD(rdd -> {
+                    JavaRDD<Document> documents = rdd.map(fields -> {
+                        Document document = new Document();
+
+                        document.put("_id", fields._1());
+                        document.put("highTemperature", fields._2());
+
+                        return document;
+                    });
+
+                    MongoSpark.save(documents, writeConfig);
+                });
+
+//                stream.foreachRDD(rdd -> {
+//                    List<List<String>> l = rdd.collect();
+//                });
+            }
+
+        }
     }
 
     private void saveRawData(List<JavaDStream> streams, List<String> topicsList) {
