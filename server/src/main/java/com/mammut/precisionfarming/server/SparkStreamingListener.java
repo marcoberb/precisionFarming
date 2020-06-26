@@ -22,6 +22,7 @@ import org.apache.spark.streaming.kafka010.LocationStrategies;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import scala.Tuple2;
 
 import java.io.Serializable;
 import java.util.*;
@@ -50,7 +51,7 @@ public class SparkStreamingListener implements Serializable {
                 .config("spark.mongodb.input.uri", "mongodb://localhost:27011/")
                 .getOrCreate();
         JavaSparkContext javaSparkContext = new JavaSparkContext(sparkSession.sparkContext());
-        JavaStreamingContext jsc = new JavaStreamingContext(javaSparkContext, Durations.seconds(1));
+        JavaStreamingContext jsc = new JavaStreamingContext(javaSparkContext, Durations.seconds(12));
 
         // Kafka configuration
         List<String> topicsList = Arrays.asList(channels.split(","));
@@ -63,6 +64,8 @@ public class SparkStreamingListener implements Serializable {
         List<JavaDStream> streams = this.getDStreams(jsc, kafkaParams, topicsList);
 
         this.saveRawData(streams, topicsList);
+
+        this.sicknessAlert(streams, topicsList);
 
         jsc.start();
         jsc.awaitTermination();
@@ -93,6 +96,112 @@ public class SparkStreamingListener implements Serializable {
         }
 
         return dStreams;
+    }
+
+    private void sicknessAlert(List<JavaDStream> streams, List<String> topicsList) {
+        final float thresholdTemperature = -1;
+        final double thresholdWaterContent = 0.249;
+        for (int i=0; i<topicsList.size(); i++) {
+            JavaDStream<List<String>> stream = streams.get(i);
+            String topic = topicsList.get(i);
+
+            Map<String, Integer> fieldToIndex = new HashMap<>();
+            if(topic.contains("meteo")) {
+                // Get mapping from meteo field names to index in the row string
+                this.getMeteoFieldToIndex(fieldToIndex);
+
+                JavaDStream<Tuple2<String, Float>> tempAvg = stream.mapToPair(fields -> {
+                    String timestamp = fields.get(fieldToIndex.get("timestamp"));
+                    String hour = timestamp.substring(0, timestamp.length() - 6);
+                    Float temperature = Float.valueOf(fields.get(fieldToIndex.get("temperature")));
+
+                    return new Tuple2<>(hour, new Tuple2<>(temperature, 1));
+                })
+                .reduceByKey((left, right) -> {
+                    Float temperature = left._1() + right._1();
+                    Integer count = left._2() + right._2();
+
+                    return new Tuple2<>(temperature, count);
+                })
+                .map(pair -> {
+                    String hour = pair._1();
+                    Float avgTemperature = pair._2()._1() / pair._2()._2();
+
+                    return new Tuple2<>(hour, avgTemperature);
+                })
+                .filter(pair -> pair._2() > thresholdTemperature);
+
+                // Set mongo write options
+                Map<String, String> mongoOptions = new HashMap<>();
+                mongoOptions.put("uri", "mongodb://localhost:27011/");
+                mongoOptions.put("database", "precisionFarmingStreamingAnalysis");
+                mongoOptions.put("collection", "temperatureAlert");
+                WriteConfig writeConfig = WriteConfig.create(mongoOptions);
+
+                tempAvg.foreachRDD(rdd -> {
+                    JavaRDD<Document> documents = rdd.map(fields -> {
+                        Document document = new Document();
+
+                        document.put("hour", fields._1());
+                        document.put("highTemperature", fields._2());
+
+                        return document;
+                    });
+
+                    MongoSpark.save(documents, writeConfig);
+                });
+
+//                stream.foreachRDD(rdd -> {
+//                    List<List<String>> l = rdd.collect();
+//                });
+            }
+            else if(topic.contains("suolo")) {
+                // Get mapping from suolo field names to index in the row string
+                this.getSuoloFieldToIndex(fieldToIndex);
+
+                JavaDStream<Tuple2<String, Double>> tempAvg = stream.mapToPair(fields -> {
+                    String timestamp = fields.get(fieldToIndex.get("timestamp"));
+                    String hour = timestamp.substring(0, timestamp.length() - 6);
+                    Double waterContent0 = Double.valueOf(fields.get(fieldToIndex.get("water_0")));
+                    Double waterContent1 = Double.valueOf(fields.get(fieldToIndex.get("water_1")));
+
+                    return new Tuple2<>(hour, new Tuple2<>((waterContent0 + waterContent1) / 2, 1));
+                })
+                        .reduceByKey((left, right) -> {
+                            Double waterContent = left._1() + right._1();
+                            Integer count = left._2() + right._2();
+
+                            return new Tuple2<>(waterContent, count);
+                        })
+                        .map(pair -> {
+                            String hour = pair._1();
+                            Double avgWaterContent = pair._2()._1() / pair._2()._2();
+
+                            return new Tuple2<>(hour, avgWaterContent);
+                        })
+                        .filter(pair -> pair._2() < thresholdWaterContent);
+
+                // Set mongo write options
+                Map<String, String> mongoOptions = new HashMap<>();
+                mongoOptions.put("uri", "mongodb://localhost:27011/");
+                mongoOptions.put("database", "precisionFarmingStreamingAnalysis");
+                mongoOptions.put("collection", "waterContentAlert_" + topic);
+                WriteConfig writeConfig = WriteConfig.create(mongoOptions);
+
+                tempAvg.foreachRDD(rdd -> {
+                    JavaRDD<Document> documents = rdd.map(fields -> {
+                        Document document = new Document();
+
+                        document.put("hour", fields._1());
+                        document.put("lowWaterContent", fields._2());
+
+                        return document;
+                    });
+
+                    MongoSpark.save(documents, writeConfig);
+                });
+            }
+        }
     }
 
     private void saveRawData(List<JavaDStream> streams, List<String> topicsList) {
