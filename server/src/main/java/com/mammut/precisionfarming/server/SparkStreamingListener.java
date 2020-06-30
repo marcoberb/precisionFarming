@@ -74,6 +74,8 @@ public class SparkStreamingListener implements Serializable {
 
         this.waterTemperatureRatio(streams, topicsList);
 
+        this.combinedSicknessAlert(streams, topicsList);
+
         jsc.start();
         jsc.awaitTermination();
     }
@@ -103,6 +105,68 @@ public class SparkStreamingListener implements Serializable {
         }
 
         return dStreams;
+    }
+
+    private void combinedSicknessAlert(List<JavaDStream> streams, List<String> topicsList) {
+        final float thresholdTemperature = -1;
+        final double thresholdWaterContent = 0.5;
+        for (int i=0; i<topicsList.size(); i++) {
+            JavaDStream<List<String>> stream = streams.get(i);
+            String topic = topicsList.get(i);
+
+            Map<String, Integer> fieldToIndex = new HashMap<>();
+            if(topic.contains("suolo")) {
+                // Get mapping from suolo field names to index in the row string
+                this.getSuoloFieldToIndex(fieldToIndex);
+
+                JavaDStream<Tuple3<String, Double, Double>> waterTempAvg = stream.mapToPair(fields -> {
+                    String timestamp = fields.get(fieldToIndex.get("timestamp"));
+                    String hour = timestamp.substring(0, timestamp.length() - 6);
+                    Double waterContent0 = Double.valueOf(fields.get(fieldToIndex.get("water_0")));
+                    Double waterContent1 = Double.valueOf(fields.get(fieldToIndex.get("water_1")));
+                    Double temperature0 = Double.valueOf(fields.get(fieldToIndex.get("temperature_0")));
+                    Double temperature1 = Double.valueOf(fields.get(fieldToIndex.get("temperature_1")));
+
+                    return new Tuple2<>(hour, new Tuple3<>((waterContent0 + waterContent1) / 2, (temperature0 + temperature1) / 2, 1));
+                })
+                .reduceByKey((left, right) -> {
+                    Double waterContent = left._1() + right._1();
+                    Double temperature = left._2() + right._2();
+                    Integer count = left._3() + right._3();
+
+                    return new Tuple3<>(waterContent, temperature, count);
+                })
+                .map(pair -> {
+                    String hour = pair._1();
+                    Double avgWaterContent = pair._2()._1() / pair._2()._3();
+                    Double avgTemperature = pair._2()._2() / pair._2()._3();
+
+                    return new Tuple3<>(hour, avgWaterContent, avgTemperature);
+                })
+                .filter(triple -> (triple._3() > thresholdTemperature) && (triple._2() < thresholdWaterContent));
+
+                // Set mongo write options
+                Map<String, String> mongoOptions = new HashMap<>();
+                mongoOptions.put("uri", "mongodb://localhost:27011/");
+                mongoOptions.put("database", "precisionFarmingStreamingAnalysis");
+                mongoOptions.put("collection", "sicknessAlert_" + topic);
+                WriteConfig writeConfig = WriteConfig.create(mongoOptions);
+
+                waterTempAvg.foreachRDD(rdd -> {
+                    JavaRDD<Document> documents = rdd.map(fields -> {
+                        Document document = new Document();
+
+                        document.put("hour", fields._1());
+                        document.put("lowWaterContent", fields._2());
+                        document.put("highTemperature", fields._3());
+
+                        return document;
+                    });
+
+                    MongoSpark.save(documents, writeConfig);
+                });
+            }
+        }
     }
 
     private void waterTemperatureRatio(List<JavaDStream> streams, List<String> topicsList) {
@@ -144,7 +208,7 @@ public class SparkStreamingListener implements Serializable {
                 Map<String, String> mongoOptions = new HashMap<>();
                 mongoOptions.put("uri", "mongodb://localhost:27011/");
                 mongoOptions.put("database", "precisionFarmingStreamingAnalysis");
-                mongoOptions.put("collection", "waterTemperatureRatio" + topic);
+                mongoOptions.put("collection", "waterTemperatureRatio_" + topic);
                 WriteConfig writeConfig = WriteConfig.create(mongoOptions);
 
                 waterTempAvg.foreachRDD(rdd -> {
