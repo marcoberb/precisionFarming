@@ -6,15 +6,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.api.java.StorageLevels;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.streaming.Durations;
 import org.apache.spark.streaming.api.java.JavaDStream;
 import org.apache.spark.streaming.api.java.JavaInputDStream;
-import org.apache.spark.streaming.api.java.JavaReceiverInputDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.kafka010.ConsumerStrategies;
 import org.apache.spark.streaming.kafka010.KafkaUtils;
@@ -35,7 +32,7 @@ import java.util.regex.Pattern;
 @Slf4j
 public class SparkStreamingListener implements Serializable {
 
-    private static final Pattern SEPARATOR = Pattern.compile(";");
+    private final Pattern SEPARATOR = Pattern.compile(";");
 
     @Value("${kafka.hostname}")
     private String hostname;
@@ -43,7 +40,6 @@ public class SparkStreamingListener implements Serializable {
     private String groupid;
     @Value("${kafka.channels.in}")
     private String channels;
-
 
     public void listen() throws InterruptedException {
 
