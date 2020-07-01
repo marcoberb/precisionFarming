@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "Starting server stack for batch analysis"
+echo "Starting mongo cluster"
 docker-compose -f docker-compose.yml up -d mongo1 mongo2 mongo3
 echo "SLEEPTIME 3s"
 sleep 3s
@@ -15,13 +15,17 @@ docker exec mongo1 mongo --eval "rs.initiate(
   }
 )"
 echo "Done"
-echo "Copying meteo csv into mongo1 instance"
+echo "Copying meteo and ground csv into mongo1 instance"
 docker cp data/meteo_commas_2020.csv mongo1:/
+docker cp data/suolo_1_commas_2020.csv mongo1:/
 echo "SLEEPTIME 10s"
 sleep 10s
 echo "Importing meteo csv into mongoDB"
 docker exec mongo1 mongoimport --type csv -d precision_farming -c meteo --headerline /meteo_commas_2020.csv --drop
+echo "Importing suolo_1 csv into mongoDB"
+docker exec mongo1 mongoimport --type csv -d precision_farming -c suolo_1 --headerline /suolo_1_commas_2020.csv --drop
 
+echo "Starting mongo-express"
 docker-compose -f docker-compose.yml up -d mongo-express
 
 echo "All done"
