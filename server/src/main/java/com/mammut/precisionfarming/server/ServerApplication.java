@@ -11,10 +11,8 @@ public class ServerApplication {
 
     public static void main(String[] args) throws InterruptedException {
         ApplicationContext applicationContext = SpringApplication.run(ServerApplication.class, args);
-//        SparkStreamingListener sparkStreamingListener = applicationContext.getBean(SparkStreamingListener.class);
-//        sparkStreamingListener.listen();
-        SparkBatchAnalyser sparkBatchAnalyser = applicationContext.getBean(SparkBatchAnalyser.class);
-        sparkBatchAnalyser.exec();
+        SparkStreamingListener sparkStreamingListener = applicationContext.getBean(SparkStreamingListener.class);
+        sparkStreamingListener.listen();
     }
 
 }

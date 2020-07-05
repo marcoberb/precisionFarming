@@ -1,0 +1,6 @@
+debug: false
+
+# Application
+spring:
+  application:
+    name: batch_analyzer

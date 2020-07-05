@@ -2,6 +2,8 @@ rootProject.name = 'precision-farming'
 
 include 'client'
 include 'server'
+include 'batch_analyzer'
 
 project(':client').name = 'client'
 project(':server').name = 'server'
+project(':batch_analyzer').name = 'batch_analyzer'

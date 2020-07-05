@@ -18,11 +18,11 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok'
 
 	implementation 'org.springframework.boot:spring-boot-starter'
-	implementation 'org.apache.spark:spark-streaming-kafka-0-10_2.12:2.4.6'
-	implementation 'org.apache.spark:spark-streaming_2.12:2.4.6'
 	implementation 'org.apache.spark:spark-core_2.12:2.4.6'
 	implementation 'org.apache.spark:spark-sql_2.12:2.4.6'
 	implementation 'org.mongodb.spark:mongo-spark-connector_2.12:2.4.2'
+
+	compile group: 'org.apache.commons', name: 'commons-math3', version: '3.0'
 
 
 	configurations.all {

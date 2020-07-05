@@ -19,7 +19,7 @@ public class ClientService {
     @Autowired
     private MsgPublisherPort msgPublisherPort;
 
-    public void generateData(String source){
+    public void generateData(String source, int sec){
         String csvFile = "data/" + source + ".csv";
 
         CSVReader reader = null;
@@ -34,14 +34,13 @@ public class ClientService {
                 log.info("Sending {}", output);
                 msgPublisherPort.publishToServer(source, output);
 
-                Thread.sleep(1000);
+                Thread.sleep(sec*1000);
             }
         } catch (IOException | CsvValidationException | InterruptedException e) {
             e.printStackTrace();
         }
     }
 }
-
 
 /*    @Autowired
     private ApplicationContext applicationContext;
