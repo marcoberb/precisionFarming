@@ -17,17 +17,17 @@ public class BatchAnalyzerApplication {
 
         //sparkBatchAnalyser.execAll();
 
-//        new Thread(() -> {
-//            while(true){
-//                log.info("last3DaysTrend");
-//                sparkBatchAnalyser.last3DaysTrend();
-//                try {
-//                    Thread.sleep(1000);
-//                } catch (InterruptedException e) {
-//                    e.printStackTrace();
-//                }
-//            }
-//        }).start();
+        new Thread(() -> {
+            while(true){
+                log.info("last3DaysTrend");
+                sparkBatchAnalyser.last3DaysTrend();
+                try {
+                    Thread.sleep(600000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
 
         new Thread(() -> {
             while(true){
@@ -41,41 +41,41 @@ public class BatchAnalyzerApplication {
             }
         }).start();
 
-//        new Thread(() -> {
-//            while(true){
-//                log.info("top10HotDays");
-//                sparkBatchAnalyser.top10HotDays();
-//                try {
-//                    Thread.sleep(30000);
-//                } catch (InterruptedException e) {
-//                    e.printStackTrace();
-//                }
-//            }
-//        }).start();
-//
-//        new Thread(() -> {
-//            while(true){
-//                log.info("top10ColdDays");
-//                sparkBatchAnalyser.top10ColdDays();
-//                try {
-//                    Thread.sleep(30000);
-//                } catch (InterruptedException e) {
-//                    e.printStackTrace();
-//                }
-//            }
-//        }).start();
-//
-//        new Thread(() -> {
-//            while(true){
-//                log.info("top10HumidDays");
-//                sparkBatchAnalyser.top10HumidDays();
-//                try {
-//                    Thread.sleep(30000);
-//                } catch (InterruptedException e) {
-//                    e.printStackTrace();
-//                }
-//            }
-//        }).start();
+        new Thread(() -> {
+            while(true){
+                log.info("top10HotDays");
+                sparkBatchAnalyser.top10HotDays();
+                try {
+                    Thread.sleep(30000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+
+        new Thread(() -> {
+            while(true){
+                log.info("top10ColdDays");
+                sparkBatchAnalyser.top10ColdDays();
+                try {
+                    Thread.sleep(30000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+
+        new Thread(() -> {
+            while(true){
+                log.info("top10HumidDays");
+                sparkBatchAnalyser.top10HumidDays();
+                try {
+                    Thread.sleep(30000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
     }
 
 }
