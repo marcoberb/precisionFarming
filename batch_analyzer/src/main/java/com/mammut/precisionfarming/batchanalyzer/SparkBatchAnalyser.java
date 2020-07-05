@@ -54,7 +54,7 @@ public class SparkBatchAnalyser {
         List<Tuple3<Date, Double, Double>> last3days = rdd
                 .mapToPair(measure ->
                         new Tuple2<>(simpleDateFormat.parse(measure.getString("data_ora").substring(0, 8)),
-                        new Tuple3<>(measure.getDouble("temp1_media"), measure.getDouble("ur1_media"), 1)))
+                        new Tuple3<>(Double.valueOf(measure.getString("temp1_media")), Double.valueOf(measure.getString("ur1_media")), 1)))
                 .reduceByKey((l, r) -> new Tuple3<>(l._1() + r._1(), l._2() + r._2(), l._3() + r._3())) //non servirebbe il count delle tuple perche tanto devono essere 288 per passare il filtro
                 .filter(day -> day._2._3() == 288) //288 è il numero massimo di misurazioni in un giorno
                 .sortByKey(false)
@@ -113,7 +113,9 @@ public class SparkBatchAnalyser {
         JavaMongoRDD<Document> rdd = MongoSpark.load(jsc);
 
         JavaRDD<Document> daysToWater = rdd
-                .mapToPair(measure -> new Tuple2<>(measure.getString("data_ora").substring(0, 8), new Tuple2<>(measure.getDouble("temp1_media"), Float.valueOf(measure.get("pioggia_mm").toString()))))
+                .mapToPair(measure ->
+                        new Tuple2<>(measure.getString("data_ora").substring(0, 8),
+                        new Tuple2<>(Double.valueOf(measure.getString("temp1_media")), Float.valueOf(measure.getString("pioggia_mm")))))
                 .groupByKey()
                 .map(day -> {
 
@@ -159,7 +161,7 @@ public class SparkBatchAnalyser {
         //log.info("numdoc: " + rdd.count());
 
         List<Document> top10HotDays = rdd
-                .mapToPair(measure -> new Tuple2<>(measure.getString("data_ora").substring(0, 8), new Tuple2<>(measure.getDouble("temp1_media"), 1)))
+                .mapToPair(measure -> new Tuple2<>(measure.getString("data_ora").substring(0, 8), new Tuple2<>(Double.valueOf(measure.getString("temp1_media")), 1)))
                 .reduceByKey((l, r) -> new Tuple2<>(l._1 + r._1, l._2 + r._2))
                 .map(day -> {
                     Document d = new Document();
@@ -194,7 +196,7 @@ public class SparkBatchAnalyser {
         //log.info("numdoc: " + rdd.count());
 
         List<Document> top10ColdDays = rdd
-                .mapToPair(measure -> new Tuple2<>(measure.getString("data_ora").substring(0, 8), new Tuple2<>(measure.getDouble("temp1_media"), 1)))
+                .mapToPair(measure -> new Tuple2<>(measure.getString("data_ora").substring(0, 8), new Tuple2<>(Double.valueOf(measure.getString("temp1_media")), 1)))
                 .reduceByKey((l, r) -> new Tuple2<>(l._1 + r._1, l._2 + r._2))
                 .map(day -> {
                     Document d = new Document();
@@ -230,7 +232,7 @@ public class SparkBatchAnalyser {
         //log.info("numdoc: " + rdd.count());
 
         List<Document> top10HumidDays = rdd
-                .mapToPair(measure -> new Tuple2<>(measure.getString("data_ora").substring(0, 8), new Tuple2<>(measure.getDouble("ur1_media"), 1)))
+                .mapToPair(measure -> new Tuple2<>(measure.getString("data_ora").substring(0, 8), new Tuple2<>(Double.valueOf(measure.getString("ur1_media")), 1)))
                 .reduceByKey((l, r) -> new Tuple2<>(l._1 + r._1, l._2 + r._2))
                 .map(day -> {
                     Document d = new Document();
