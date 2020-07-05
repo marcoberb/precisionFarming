@@ -13,3 +13,9 @@ docker exec mongo1 mongo --eval "rs.initiate(
     ]
   }
 )"
+
+sleep 10s
+echo "Starting mongo-express"
+docker-compose -f docker-compose.yml up -d mongo-express
+
+echo "All done"
