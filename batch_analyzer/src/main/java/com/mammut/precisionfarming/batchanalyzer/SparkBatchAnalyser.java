@@ -43,7 +43,7 @@ public class SparkBatchAnalyser {
         SparkSession spark = SparkSession.builder()
                 .master("local")
                 .appName("last3DaysTrend")
-                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precision_farming.meteo")
+                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precisionFarmingRaw.iotData_meteo_2020_gennaio_marzo")
                 .getOrCreate();
 
         JavaSparkContext jsc = new JavaSparkContext(spark.sparkContext());
@@ -89,7 +89,7 @@ public class SparkBatchAnalyser {
         last3daysTrend.put("isGettingHotter", isGettingHotter);
 
         MongoClient mongoClient = MongoClients.create("mongodb://localhost:27011");
-        MongoDatabase precision_farmingDB = mongoClient.getDatabase("precision_farming");
+        MongoDatabase precision_farmingDB = mongoClient.getDatabase("precisionFarmingBatchResults");
         MongoCollection<Document> last3DaysTrendCollection = precision_farmingDB.getCollection("last3DaysTrend");
 
         last3DaysTrendCollection.insertOne(last3daysTrend);
@@ -104,8 +104,8 @@ public class SparkBatchAnalyser {
         SparkSession spark = SparkSession.builder()
                 .master("local")
                 .appName("server_batch")
-                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precision_farming.meteo")
-                .config("spark.mongodb.output.uri", "mongodb://localhost:27011/precision_farming.daysToWaterField")
+                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precisionFarmingRaw.iotData_meteo_2020_gennaio_marzo")
+                .config("spark.mongodb.output.uri", "mongodb://localhost:27011/precisionFarmingBatchResults.daysToWaterField")
                 .getOrCreate();
 
         JavaSparkContext jsc = new JavaSparkContext(spark.sparkContext());
@@ -150,7 +150,7 @@ public class SparkBatchAnalyser {
         SparkSession spark = SparkSession.builder()
                 .master("local")
                 .appName("top10HotDays")
-                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precision_farming.meteo")
+                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precisionFarmingRaw.iotData_meteo_2020_gennaio_marzo")
                 .getOrCreate();
 
         JavaSparkContext jsc = new JavaSparkContext(spark.sparkContext());
@@ -171,7 +171,7 @@ public class SparkBatchAnalyser {
                 .take(10);
 
         MongoClient mongoClient = MongoClients.create("mongodb://localhost:27011");
-        MongoDatabase precision_farmingDB = mongoClient.getDatabase("precision_farming");
+        MongoDatabase precision_farmingDB = mongoClient.getDatabase("precisionFarmingBatchResults");
         MongoCollection<Document> top10HotDaysCollection = precision_farmingDB.getCollection("top10HotDays");
 
         top10HotDaysCollection.insertMany(top10HotDays);
@@ -185,7 +185,7 @@ public class SparkBatchAnalyser {
         SparkSession spark = SparkSession.builder()
                 .master("local")
                 .appName("top10ColdDays")
-                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precision_farming.meteo")
+                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precisionFarmingRaw.iotData_meteo_2020_gennaio_marzo")
                 .getOrCreate();
 
         JavaSparkContext jsc = new JavaSparkContext(spark.sparkContext());
@@ -206,7 +206,7 @@ public class SparkBatchAnalyser {
                 .take(10);
 
         MongoClient mongoClient = MongoClients.create("mongodb://localhost:27011");
-        MongoDatabase precision_farmingDB = mongoClient.getDatabase("precision_farming");
+        MongoDatabase precision_farmingDB = mongoClient.getDatabase("precisionFarmingBatchResults");
         MongoCollection<Document> top10HotDaysCollection = precision_farmingDB.getCollection("top10ColdDays");
 
         top10HotDaysCollection.insertMany(top10ColdDays);
@@ -220,7 +220,7 @@ public class SparkBatchAnalyser {
         SparkSession spark = SparkSession.builder()
                 .master("local")
                 .appName("server_batch")
-                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precision_farming.meteo")
+                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precisionFarmingRaw.iotData_meteo_2020_gennaio_marzo")
                 //.config("spark.mongodb.output.uri", "mongodb://localhost:27011/precision_farming.top10HumidDays")
                 .getOrCreate();
 
@@ -251,7 +251,7 @@ public class SparkBatchAnalyser {
 
 
         MongoClient mongoClient = MongoClients.create("mongodb://localhost:27011");
-        MongoDatabase precision_farmingDB = mongoClient.getDatabase("precision_farming");
+        MongoDatabase precision_farmingDB = mongoClient.getDatabase("precisionFarmingBatchResults");
         MongoCollection<Document> top10HumidDaysCollection = precision_farmingDB.getCollection("top10HumidDays");
 
         top10HumidDaysCollection.insertMany(top10HumidDays);

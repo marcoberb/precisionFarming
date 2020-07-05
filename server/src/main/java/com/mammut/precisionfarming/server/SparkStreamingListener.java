@@ -235,9 +235,9 @@ public class SparkStreamingListener implements Serializable {
                 this.getMeteoFieldToIndex(fieldToIndex);
 
                 JavaDStream<Tuple2<String, Float>> rainAvg = stream.mapToPair(fields -> {
-                    String timestamp = fields.get(fieldToIndex.get("timestamp"));
+                    String timestamp = fields.get(fieldToIndex.get("data_ora"));
                     String hour = timestamp.substring(0, timestamp.length() - 6);
-                    Float rain = Float.valueOf(fields.get(fieldToIndex.get("rain")));
+                    Float rain = Float.valueOf(fields.get(fieldToIndex.get("pioggia_mm")));
 
                     return new Tuple2<>(hour, new Tuple2<>(rain, 1));
                 })
@@ -297,9 +297,9 @@ public class SparkStreamingListener implements Serializable {
                 this.getMeteoFieldToIndex(fieldToIndex);
 
                 JavaDStream<Tuple2<String, Float>> tempAvg = stream.mapToPair(fields -> {
-                    String timestamp = fields.get(fieldToIndex.get("timestamp"));
+                    String timestamp = fields.get(fieldToIndex.get("data_ora"));
                     String hour = timestamp.substring(0, timestamp.length() - 6);
-                    Float temperature = Float.valueOf(fields.get(fieldToIndex.get("temperature")));
+                    Float temperature = Float.valueOf(fields.get(fieldToIndex.get("temp1_media")));
 
                     return new Tuple2<>(hour, new Tuple2<>(temperature, 1));
                 })
@@ -425,14 +425,25 @@ public class SparkStreamingListener implements Serializable {
 
     private void getMeteoFieldToIndex(Map<String, Integer> fieldToIndex) {
         fieldToIndex.put("_id", 0);
-        fieldToIndex.put("timestamp", 1);
-        fieldToIndex.put("temperature", 2);
-        fieldToIndex.put("humidity", 5);
-        fieldToIndex.put("rain", 9);
+        fieldToIndex.put("data_ora", 1);
+        fieldToIndex.put("temp1_media", 2);
+        fieldToIndex.put("temp1_min", 3);
+        fieldToIndex.put("temp1_max", 4);
+        fieldToIndex.put("ur1_media", 5);
+        fieldToIndex.put("ur1_min", 6);
+        fieldToIndex.put("ur1_max", 7);
+        fieldToIndex.put("temp1_ur1_n_letture", 8);
+        fieldToIndex.put("pioggia_mm", 9);
         fieldToIndex.put("wind_dir", 10);
-        fieldToIndex.put("wind_speed", 12);
-        fieldToIndex.put("pressure", 16);
-        fieldToIndex.put("radiation", 19);
+        fieldToIndex.put("wind_dir_n_letture", 11);
+        fieldToIndex.put("wind_speed_media", 12);
+        fieldToIndex.put("wind_speed_min", 13);
+        fieldToIndex.put("wind_speed_max", 14);
+        fieldToIndex.put("wind_speed_n_letture", 15);
+        fieldToIndex.put("pressione_mbar", 16);
+        fieldToIndex.put("pressione_standard_mbar", 17);
+        fieldToIndex.put("pressione_n_letture", 18);
+        fieldToIndex.put("rad_W/mq_array", 19);
     }
 
 
