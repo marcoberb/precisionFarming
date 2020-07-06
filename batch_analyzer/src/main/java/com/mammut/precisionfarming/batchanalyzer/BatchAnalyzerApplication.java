@@ -22,7 +22,7 @@ public class BatchAnalyzerApplication {
                 log.info("last3DaysTrend");
                 sparkBatchAnalyser.last3DaysTrend();
                 try {
-                    Thread.sleep(1000);
+                    Thread.sleep(600000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }

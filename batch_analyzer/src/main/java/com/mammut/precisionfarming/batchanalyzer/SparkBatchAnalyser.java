@@ -38,12 +38,12 @@ public class SparkBatchAnalyser {
 
     //restituisce temperatura e umidità dei 3 gg passati e una flag che indica se il trend è calore in aumento
     void last3DaysTrend() {
-        final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("dd/MM/yy");
+        final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd");
 
         SparkSession spark = SparkSession.builder()
                 .master("local")
                 .appName("last3DaysTrend")
-                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precision_farming.meteo")
+                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precisionFarmingRaw.iotData_meteo_2020_gennaio_marzo")
                 .getOrCreate();
 
         JavaSparkContext jsc = new JavaSparkContext(spark.sparkContext());
@@ -53,10 +53,10 @@ public class SparkBatchAnalyser {
 
         List<Tuple3<Date, Double, Double>> last3days = rdd
                 .mapToPair(measure ->
-                        new Tuple2<>(simpleDateFormat.parse(measure.getString("data_ora").substring(0, 8)),
-                        new Tuple3<>(measure.getDouble("temp1_media"), measure.getDouble("ur1_media"), 1)))
+                        new Tuple2<>(simpleDateFormat.parse(measure.getString("data_ora").substring(0, 10)),
+                        new Tuple3<>(Double.valueOf(measure.getString("temp1_media")), Double.valueOf(measure.getString("ur1_media")), 1)))
                 .reduceByKey((l, r) -> new Tuple3<>(l._1() + r._1(), l._2() + r._2(), l._3() + r._3())) //non servirebbe il count delle tuple perche tanto devono essere 288 per passare il filtro
-                .filter(day -> day._2._3() == 288) //288 è il numero massimo di misurazioni in un giorno
+                //.filter(day -> day._2._3() == 288) //288 è il numero massimo di misurazioni in un giorno
                 .sortByKey(false)
                 .map(day -> new Tuple3<>(day._1, day._2._1() / day._2._3(), day._2._2() / day._2._3()))
                 .take(3);
@@ -76,26 +76,28 @@ public class SparkBatchAnalyser {
                 isGettingHotter = false;
         }
 
-        Document last3daysTrend = new Document();
-        last3daysTrend.put("day_minus_1", simpleDateFormat.format(last3days.get(0)._1()));
-        last3daysTrend.put("avg_temp1", Precision.round(last3days.get(0)._2(), 2));
-        last3daysTrend.put("avg_hum1", Precision.round(last3days.get(0)._3(), 2));
-        last3daysTrend.put("day_minus_2", simpleDateFormat.format(last3days.get(1)._1()));
-        last3daysTrend.put("avg_temp2", Precision.round(last3days.get(1)._2(), 2));
-        last3daysTrend.put("avg_hum2", Precision.round(last3days.get(1)._3(), 2));
-        last3daysTrend.put("day_minus_3", simpleDateFormat.format(last3days.get(2)._1()));
-        last3daysTrend.put("avg_temp3", Precision.round(last3days.get(2)._2(), 2));
-        last3daysTrend.put("avg_hum3", Precision.round(last3days.get(2)._3(), 2));
-        last3daysTrend.put("isGettingHotter", isGettingHotter);
+        if(last3days.size() == 3) {
+            Document last3daysTrend = new Document();
+            last3daysTrend.put("day_minus_1", simpleDateFormat.format(last3days.get(0)._1()));
+            last3daysTrend.put("avg_temp1", Precision.round(last3days.get(0)._2(), 2));
+            last3daysTrend.put("avg_hum1", Precision.round(last3days.get(0)._3(), 2));
+            last3daysTrend.put("day_minus_2", simpleDateFormat.format(last3days.get(1)._1()));
+            last3daysTrend.put("avg_temp2", Precision.round(last3days.get(1)._2(), 2));
+            last3daysTrend.put("avg_hum2", Precision.round(last3days.get(1)._3(), 2));
+            last3daysTrend.put("day_minus_3", simpleDateFormat.format(last3days.get(2)._1()));
+            last3daysTrend.put("avg_temp3", Precision.round(last3days.get(2)._2(), 2));
+            last3daysTrend.put("avg_hum3", Precision.round(last3days.get(2)._3(), 2));
+            last3daysTrend.put("isGettingHotter", isGettingHotter);
 
-        MongoClient mongoClient = MongoClients.create("mongodb://localhost:27011");
-        MongoDatabase precision_farmingDB = mongoClient.getDatabase("precision_farming");
-        MongoCollection<Document> last3DaysTrendCollection = precision_farmingDB.getCollection("last3DaysTrend");
+            MongoClient mongoClient = MongoClients.create("mongodb://localhost:27011");
+            MongoDatabase precision_farmingDB = mongoClient.getDatabase("precisionFarmingBatchResults");
+            MongoCollection<Document> last3DaysTrendCollection = precision_farmingDB.getCollection("last3DaysTrend");
 
-        last3DaysTrendCollection.insertOne(last3daysTrend);
+            last3DaysTrendCollection.insertOne(last3daysTrend);
 
-        mongoClient.close();
-        spark.close();
+//            mongoClient.close();
+        }
+//        spark.close();
     }
 
     //calcola in quali giorni bisognava annaffiare il campo
@@ -104,8 +106,8 @@ public class SparkBatchAnalyser {
         SparkSession spark = SparkSession.builder()
                 .master("local")
                 .appName("server_batch")
-                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precision_farming.meteo")
-                .config("spark.mongodb.output.uri", "mongodb://localhost:27011/precision_farming.daysToWaterField")
+                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precisionFarmingRaw.iotData_meteo_2020_gennaio_marzo")
+                .config("spark.mongodb.output.uri", "mongodb://localhost:27011/precisionFarmingBatchResults.daysToWaterField")
                 .getOrCreate();
 
         JavaSparkContext jsc = new JavaSparkContext(spark.sparkContext());
@@ -113,7 +115,9 @@ public class SparkBatchAnalyser {
         JavaMongoRDD<Document> rdd = MongoSpark.load(jsc);
 
         JavaRDD<Document> daysToWater = rdd
-                .mapToPair(measure -> new Tuple2<>(measure.getString("data_ora").substring(0, 8), new Tuple2<>(measure.getDouble("temp1_media"), Float.valueOf(measure.get("pioggia_mm").toString()))))
+                .mapToPair(measure ->
+                        new Tuple2<>(measure.getString("data_ora").substring(0, 10),
+                        new Tuple2<>(Double.valueOf(measure.getString("temp1_media")), Float.valueOf(measure.getString("pioggia_mm")))))
                 .groupByKey()
                 .map(day -> {
 
@@ -141,8 +145,8 @@ public class SparkBatchAnalyser {
 
         MongoSpark.save(daysToWater);
 
-        jsc.close();
-        spark.close();
+//        jsc.close();
+//        spark.close();
     }
 
     //calcola quali sono stati i 10 giogni piu caldi
@@ -150,7 +154,7 @@ public class SparkBatchAnalyser {
         SparkSession spark = SparkSession.builder()
                 .master("local")
                 .appName("top10HotDays")
-                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precision_farming.meteo")
+                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precisionFarmingRaw.iotData_meteo_2020_gennaio_marzo")
                 .getOrCreate();
 
         JavaSparkContext jsc = new JavaSparkContext(spark.sparkContext());
@@ -159,7 +163,7 @@ public class SparkBatchAnalyser {
         //log.info("numdoc: " + rdd.count());
 
         List<Document> top10HotDays = rdd
-                .mapToPair(measure -> new Tuple2<>(measure.getString("data_ora").substring(0, 8), new Tuple2<>(measure.getDouble("temp1_media"), 1)))
+                .mapToPair(measure -> new Tuple2<>(measure.getString("data_ora").substring(0, 10), new Tuple2<>(Double.valueOf(measure.getString("temp1_media")), 1)))
                 .reduceByKey((l, r) -> new Tuple2<>(l._1 + r._1, l._2 + r._2))
                 .map(day -> {
                     Document d = new Document();
@@ -171,13 +175,14 @@ public class SparkBatchAnalyser {
                 .take(10);
 
         MongoClient mongoClient = MongoClients.create("mongodb://localhost:27011");
-        MongoDatabase precision_farmingDB = mongoClient.getDatabase("precision_farming");
+        MongoDatabase precision_farmingDB = mongoClient.getDatabase("precisionFarmingBatchResults");
         MongoCollection<Document> top10HotDaysCollection = precision_farmingDB.getCollection("top10HotDays");
 
+        top10HotDaysCollection.drop();
         top10HotDaysCollection.insertMany(top10HotDays);
 
-        mongoClient.close();
-        spark.close();
+//        mongoClient.close();
+//        spark.close();
     }
 
     //calcola quali sono stati i 10 giorni piu freddi
@@ -185,7 +190,7 @@ public class SparkBatchAnalyser {
         SparkSession spark = SparkSession.builder()
                 .master("local")
                 .appName("top10ColdDays")
-                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precision_farming.meteo")
+                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precisionFarmingRaw.iotData_meteo_2020_gennaio_marzo")
                 .getOrCreate();
 
         JavaSparkContext jsc = new JavaSparkContext(spark.sparkContext());
@@ -194,7 +199,7 @@ public class SparkBatchAnalyser {
         //log.info("numdoc: " + rdd.count());
 
         List<Document> top10ColdDays = rdd
-                .mapToPair(measure -> new Tuple2<>(measure.getString("data_ora").substring(0, 8), new Tuple2<>(measure.getDouble("temp1_media"), 1)))
+                .mapToPair(measure -> new Tuple2<>(measure.getString("data_ora").substring(0, 10), new Tuple2<>(Double.valueOf(measure.getString("temp1_media")), 1)))
                 .reduceByKey((l, r) -> new Tuple2<>(l._1 + r._1, l._2 + r._2))
                 .map(day -> {
                     Document d = new Document();
@@ -206,21 +211,22 @@ public class SparkBatchAnalyser {
                 .take(10);
 
         MongoClient mongoClient = MongoClients.create("mongodb://localhost:27011");
-        MongoDatabase precision_farmingDB = mongoClient.getDatabase("precision_farming");
+        MongoDatabase precision_farmingDB = mongoClient.getDatabase("precisionFarmingBatchResults");
         MongoCollection<Document> top10HotDaysCollection = precision_farmingDB.getCollection("top10ColdDays");
 
+        top10HotDaysCollection.drop();
         top10HotDaysCollection.insertMany(top10ColdDays);
 
-        mongoClient.close();
-        spark.close();
+//        mongoClient.close();
+//        spark.close();
     }
 
     //calcola quali sono stati i 10 giorni piu umidi
     void top10HumidDays() {
         SparkSession spark = SparkSession.builder()
                 .master("local")
-                .appName("server_batch")
-                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precision_farming.meteo")
+                .appName("top10_humid_days")
+                .config("spark.mongodb.input.uri", "mongodb://localhost:27011/precisionFarmingRaw.iotData_meteo_2020_gennaio_marzo")
                 //.config("spark.mongodb.output.uri", "mongodb://localhost:27011/precision_farming.top10HumidDays")
                 .getOrCreate();
 
@@ -230,7 +236,7 @@ public class SparkBatchAnalyser {
         //log.info("numdoc: " + rdd.count());
 
         List<Document> top10HumidDays = rdd
-                .mapToPair(measure -> new Tuple2<>(measure.getString("data_ora").substring(0, 8), new Tuple2<>(measure.getDouble("ur1_media"), 1)))
+                .mapToPair(measure -> new Tuple2<>(measure.getString("data_ora").substring(0, 10), new Tuple2<>(Double.valueOf(measure.getString("ur1_media")), 1)))
                 .reduceByKey((l, r) -> new Tuple2<>(l._1 + r._1, l._2 + r._2))
                 .map(day -> {
                     Document d = new Document();
@@ -242,7 +248,7 @@ public class SparkBatchAnalyser {
                 .take(10);
 
 /*        List<Tuple2<String, Double>> top10HumidDays = rdd
-                .mapToPair(measure -> new Tuple2<>(measure.getString("data_ora").substring(0, 8), new Tuple2<>(measure.getDouble("ur1_media"), 1)))
+                .mapToPair(measure -> new Tuple2<>(measure.getString("data_ora").substring(0, 10), new Tuple2<>(measure.getDouble("ur1_media"), 1)))
                 .reduceByKey((l, r) -> new Tuple2<>(l._1 + r._1, l._2 + r._2))
                 .map(day -> new Tuple2<>(day._1, day._2._1 / day._2._2))
                 .sortBy(d -> d._2(), false, 1).takeOrdered(10);
@@ -251,12 +257,13 @@ public class SparkBatchAnalyser {
 
 
         MongoClient mongoClient = MongoClients.create("mongodb://localhost:27011");
-        MongoDatabase precision_farmingDB = mongoClient.getDatabase("precision_farming");
+        MongoDatabase precision_farmingDB = mongoClient.getDatabase("precisionFarmingBatchResults");
         MongoCollection<Document> top10HumidDaysCollection = precision_farmingDB.getCollection("top10HumidDays");
 
+        top10HumidDaysCollection.drop();
         top10HumidDaysCollection.insertMany(top10HumidDays);
 
-        mongoClient.close();
-        spark.close();
+//        mongoClient.close();
+//        spark.close();
     }
 }
